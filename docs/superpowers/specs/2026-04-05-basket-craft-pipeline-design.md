@@ -65,7 +65,7 @@ basket-craft-pipeline/
 | File | Responsibility |
 |---|---|
 | `docker-compose.yml` | Spins up Postgres on port 5432 with a named volume so data persists between container restarts |
-| `.env` | Holds MySQL host/user/password and Postgres credentials — never committed to git |
+| `.env` | Holds MySQL + Postgres credentials — never committed to git. Expected variables: `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB`, `PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASSWORD`, `PG_DB` |
 | `extract_load.py` | Opens MySQL connection → `SELECT *` from each table → writes to `raw` schema in Postgres, replacing tables each run |
 | `transform.py` | Connects to Postgres → reads `sql/monthly_sales.sql` → executes it to create/replace `marts.monthly_sales_summary` |
 | `sql/monthly_sales.sql` | The JOIN + GROUP BY query — kept in its own file so it is readable and editable without touching Python |
