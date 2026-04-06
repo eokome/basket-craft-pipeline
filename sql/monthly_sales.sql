@@ -4,9 +4,9 @@ CREATE TABLE marts.monthly_sales_summary AS
 SELECT
     p.category,
     DATE_TRUNC('month', o.order_date)           AS month,
-    SUM(oi.line_total)                          AS revenue,
+    SUM(oi.line_total::NUMERIC)                 AS revenue,
     COUNT(DISTINCT o.order_id)                  AS order_count,
-    SUM(oi.line_total)
+    SUM(oi.line_total::NUMERIC)
         / NULLIF(COUNT(DISTINCT o.order_id), 0) AS avg_order_value
 FROM raw.orders o
 JOIN raw.order_items oi ON o.order_id    = oi.order_id

@@ -16,3 +16,5 @@ def test_sql_file_has_required_clauses():
     assert "SUM" in sql
     assert "COUNT" in sql
     assert "NULLIF" in sql
+    assert "JOIN" in sql
+    assert "FROM RAW." in sql
