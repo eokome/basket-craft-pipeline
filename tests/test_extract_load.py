@@ -113,3 +113,22 @@ def test_copy_table_creates_schema_drops_and_inserts():
     assert any('CREATE TABLE raw."products"' in c for c in pg_calls)
     mock_ev.assert_called_once()
     mock_pg.commit.assert_called_once()
+
+
+def test_get_pg_config_rds_returns_rds_keys():
+    env = {
+        "TARGET": "rds",
+        "RDS_HOST": "rds.example.com",
+        "RDS_PORT": "5432",
+        "RDS_USER": "rdsuser",
+        "RDS_PASSWORD": "rdspass",
+        "RDS_DATABASE": "basket_craft",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        from extract_load import get_pg_config
+        config = get_pg_config()
+    assert config["host"] == "rds.example.com"
+    assert config["port"] == 5432
+    assert config["user"] == "rdsuser"
+    assert config["password"] == "rdspass"
+    assert config["dbname"] == "basket_craft"

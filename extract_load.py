@@ -18,6 +18,14 @@ def get_mysql_config():
 
 
 def get_pg_config():
+    if os.environ.get("TARGET") == "rds":
+        return {
+            "host":     os.environ["RDS_HOST"],
+            "port":     int(os.environ.get("RDS_PORT", "5432")),
+            "user":     os.environ["RDS_USER"],
+            "password": os.environ["RDS_PASSWORD"],
+            "dbname":   os.environ["RDS_DATABASE"],
+        }
     return {
         "host":     os.environ["PG_HOST"],
         "port":     int(os.environ.get("PG_PORT", "5432")),
