@@ -37,10 +37,18 @@ def infer_pg_type(value):
     return "TEXT"
 
 
+def first_non_null(rows, col_index):
+    """Return the first non-null value for a given column, or None."""
+    for row in rows:
+        if row[col_index] is not None:
+            return row[col_index]
+    return None
+
+
 def copy_table(mysql_conn, pg_conn, table_name):
     """Copy one MySQL table into the raw schema in PostgreSQL."""
     with mysql_conn.cursor() as mc:
-        mc.execute(f"SELECT * FROM {table_name}")
+        mc.execute(f"SELECT * FROM `{table_name}`")
         rows = mc.fetchall()
         col_names = [d[0] for d in mc.description]
 
@@ -48,7 +56,7 @@ def copy_table(mysql_conn, pg_conn, table_name):
         print(f"[extract_load] raw.{table_name} → 0 rows (empty source)")
         return
 
-    pg_types = [infer_pg_type(rows[0][i]) for i in range(len(col_names))]
+    pg_types = [infer_pg_type(first_non_null(rows, i)) for i in range(len(col_names))]
     col_defs  = ", ".join(f'"{c}" {t}' for c, t in zip(col_names, pg_types))
 
     with pg_conn.cursor() as pc:
