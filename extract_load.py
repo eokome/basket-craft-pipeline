@@ -2,6 +2,10 @@ import os
 import decimal
 from datetime import date, datetime
 
+import pymysql
+import psycopg2
+import psycopg2.extras
+
 
 def get_mysql_config():
     return {
@@ -34,11 +38,49 @@ def infer_pg_type(value):
 
 
 def copy_table(mysql_conn, pg_conn, table_name):
-    pass  # implemented in Task 4
+    """Copy one MySQL table into the raw schema in PostgreSQL."""
+    with mysql_conn.cursor() as mc:
+        mc.execute(f"SELECT * FROM {table_name}")
+        rows = mc.fetchall()
+        col_names = [d[0] for d in mc.description]
+
+    if not rows:
+        print(f"[extract_load] raw.{table_name} → 0 rows (empty source)")
+        return
+
+    pg_types = [infer_pg_type(rows[0][i]) for i in range(len(col_names))]
+    col_defs  = ", ".join(f'"{c}" {t}' for c, t in zip(col_names, pg_types))
+
+    with pg_conn.cursor() as pc:
+        pc.execute("CREATE SCHEMA IF NOT EXISTS raw")
+        pc.execute(f'DROP TABLE IF EXISTS raw."{table_name}"')
+        pc.execute(f'CREATE TABLE raw."{table_name}" ({col_defs})')
+        psycopg2.extras.execute_values(
+            pc,
+            f'INSERT INTO raw."{table_name}" VALUES %s',
+            rows,
+        )
+    pg_conn.commit()
+    print(f"[extract_load] raw.{table_name} → {len(rows):,} rows loaded")
 
 
 def main():
-    pass  # implemented in Task 4
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    mysql_conn = pymysql.connect(**get_mysql_config())
+    pg_conn    = psycopg2.connect(**get_pg_config())
+
+    try:
+        for table in ["orders", "order_items", "products"]:
+            try:
+                copy_table(mysql_conn, pg_conn, table)
+            except Exception as e:
+                print(f"[extract_load] ERROR copying {table}: {e}")
+                raise SystemExit(1)
+    finally:
+        mysql_conn.close()
+        pg_conn.close()
 
 
 if __name__ == "__main__":
