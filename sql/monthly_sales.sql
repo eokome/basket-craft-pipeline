@@ -1,3 +1,6 @@
+-- NOTE: groups by product_name (not category) — the real products table has no category column.
+-- Columns used: orders.created_at, order_items.price_usd, products.product_name, products.product_id
+
 DROP TABLE IF EXISTS marts.monthly_sales_summary;
 
 CREATE TABLE marts.monthly_sales_summary AS

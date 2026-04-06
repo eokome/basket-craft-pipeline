@@ -32,12 +32,13 @@ def main():
     load_dotenv()
 
     sql_path = os.path.join(os.path.dirname(__file__), "sql", "monthly_sales.sql")
-    pg_conn  = psycopg2.connect(**get_pg_config())
-
+    pg_conn  = None
     try:
+        pg_conn = psycopg2.connect(**get_pg_config())
         run_transform(pg_conn, sql_path)
     finally:
-        pg_conn.close()
+        if pg_conn is not None:
+            pg_conn.close()
 
 
 if __name__ == "__main__":

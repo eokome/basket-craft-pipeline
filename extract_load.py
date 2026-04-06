@@ -76,10 +76,11 @@ def main():
     from dotenv import load_dotenv
     load_dotenv()
 
-    mysql_conn = pymysql.connect(**get_mysql_config())
-    pg_conn    = psycopg2.connect(**get_pg_config())
-
+    mysql_conn = None
+    pg_conn    = None
     try:
+        mysql_conn = pymysql.connect(**get_mysql_config())
+        pg_conn    = psycopg2.connect(**get_pg_config())
         for table in ["orders", "order_items", "products"]:
             try:
                 copy_table(mysql_conn, pg_conn, table)
@@ -87,8 +88,10 @@ def main():
                 print(f"[extract_load] ERROR copying {table}: {e}")
                 raise SystemExit(1)
     finally:
-        mysql_conn.close()
-        pg_conn.close()
+        if mysql_conn is not None:
+            mysql_conn.close()
+        if pg_conn is not None:
+            pg_conn.close()
 
 
 if __name__ == "__main__":
