@@ -1,6 +1,6 @@
 import os
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, call
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -83,3 +83,33 @@ def test_get_pg_config_returns_correct_keys():
     assert config["user"] == "student"
     assert config["password"] == "student123"
     assert config["dbname"] == "basket_craft"  # psycopg2 requires "dbname", not "database"
+
+
+def test_copy_table_creates_schema_drops_and_inserts():
+    """copy_table must: create raw schema, drop existing table, create new table, bulk insert, commit."""
+    from unittest.mock import MagicMock
+
+    # --- MySQL mock ---
+    mock_mc = MagicMock()
+    mock_mc.description = [("product_id",), ("product_name",)]
+    mock_mc.fetchall.return_value = [(1, "Gift Basket"), (2, "Fruit Basket")]
+    mock_mysql = MagicMock()
+    mock_mysql.cursor.return_value.__enter__ = MagicMock(return_value=mock_mc)
+    mock_mysql.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+    # --- Postgres mock ---
+    mock_pc = MagicMock()
+    mock_pg = MagicMock()
+    mock_pg.cursor.return_value.__enter__ = MagicMock(return_value=mock_pc)
+    mock_pg.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+    with patch("psycopg2.extras.execute_values") as mock_ev:
+        from extract_load import copy_table
+        copy_table(mock_mysql, mock_pg, "products")
+
+    pg_calls = [str(c) for c in mock_pc.execute.call_args_list]
+    assert any("CREATE SCHEMA IF NOT EXISTS raw" in c for c in pg_calls)
+    assert any('DROP TABLE IF EXISTS raw."products"' in c for c in pg_calls)
+    assert any('CREATE TABLE raw."products"' in c for c in pg_calls)
+    mock_ev.assert_called_once()
+    mock_pg.commit.assert_called_once()
