@@ -58,7 +58,7 @@ volumes:
 
 ```
 PyMySQL==1.1.1
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.11
 python-dotenv==1.0.1
 pytest==8.3.5
 ```
