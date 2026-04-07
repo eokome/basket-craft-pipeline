@@ -1,15 +1,17 @@
 # Basket Craft Pipeline
 
-An ELT pipeline that extracts sales data from a MySQL source database, loads it into a local PostgreSQL instance (Docker), and transforms it into a monthly sales summary dashboard table.
+An ELT pipeline that extracts sales data from a MySQL source database, loads it into PostgreSQL (local Docker or AWS RDS), and transforms it into a monthly sales summary dashboard table.
 
 **Output:** `marts.monthly_sales_summary` — revenue, order count, and average order value by product and month.
+
+**AWS RDS:** Raw Basket Craft data (`raw.orders`, `raw.order_items`, `raw.products`) is available on a hosted PostgreSQL 17 instance at `basket-craft-db.cg7eky00i67b.us-east-1.rds.amazonaws.com`.
 
 ---
 
 ## How It Works
 
 ```
-MySQL (remote)          PostgreSQL (Docker)
+MySQL (remote)          PostgreSQL (Docker or RDS)
 ─────────────           ─────────────────────────────────────
 orders          ──►     raw.orders
 order_items     ──►     raw.order_items          ──►   marts.monthly_sales_summary
@@ -17,7 +19,7 @@ products        ──►     raw.products
          extract_load.py              transform.py
 ```
 
-1. `extract_load.py` — copies three MySQL tables into a `raw` schema in Postgres (full refresh each run)
+1. `extract_load.py` — copies three MySQL tables into a `raw` schema in Postgres (full refresh each run). Set `TARGET=rds` to load into AWS RDS instead of local Docker.
 2. `transform.py` — runs `sql/monthly_sales.sql` to aggregate the raw tables into `marts.monthly_sales_summary`
 
 ---
@@ -52,7 +54,7 @@ MYSQL_PASSWORD=<password>
 MYSQL_DB=<database>
 ```
 
-The Postgres values are pre-filled to match the Docker container — leave them as-is unless you change `docker-compose.yml`.
+The local Postgres values are pre-filled to match the Docker container. To target AWS RDS instead, fill in the `RDS_*` section of `.env` and run with `TARGET=rds`.
 
 ### 3. Start the database
 
@@ -73,8 +75,13 @@ docker compose exec postgres psql -U student -d basket_craft -c "SELECT version(
 Run the two scripts in order:
 
 ```bash
+# Load into local Docker Postgres (default)
 python extract_load.py
 python transform.py
+
+# Load into AWS RDS Postgres
+TARGET=rds python extract_load.py
+python transform.py   # transform.py always runs against PG_* — update .env PG_* to point to RDS if needed
 ```
 
 Expected output:
@@ -124,7 +131,7 @@ source venv/bin/activate
 pytest tests/ -v
 ```
 
-15 unit tests covering config loading, type inference, SQL structure, and core pipeline functions. No live database required.
+16 unit tests covering config loading (including RDS path), type inference, SQL structure, and core pipeline functions. No live database required.
 
 ---
 
