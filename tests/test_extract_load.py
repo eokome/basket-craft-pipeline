@@ -1,0 +1,134 @@
+import os
+import pytest
+from unittest.mock import patch, call
+from datetime import date, datetime
+from decimal import Decimal
+
+
+def test_get_mysql_config_raises_on_missing_env_vars():
+    with patch.dict(os.environ, {}, clear=True):
+        from extract_load import get_mysql_config
+        with pytest.raises(KeyError):
+            get_mysql_config()
+
+
+def test_get_pg_config_raises_on_missing_env_vars():
+    with patch.dict(os.environ, {}, clear=True):
+        from extract_load import get_pg_config
+        with pytest.raises(KeyError):
+            get_pg_config()
+
+
+def test_infer_pg_type_datetime():
+    from extract_load import infer_pg_type
+    assert infer_pg_type(datetime(2024, 1, 1)) == "TIMESTAMP"
+
+
+def test_infer_pg_type_date():
+    from extract_load import infer_pg_type
+    assert infer_pg_type(date(2024, 1, 1)) == "DATE"
+
+
+def test_infer_pg_type_int():
+    from extract_load import infer_pg_type
+    assert infer_pg_type(42) == "BIGINT"
+
+
+def test_infer_pg_type_float():
+    from extract_load import infer_pg_type
+    assert infer_pg_type(3.14) == "DOUBLE PRECISION"
+
+
+def test_infer_pg_type_decimal():
+    from extract_load import infer_pg_type
+    assert infer_pg_type(Decimal("9.99")) == "NUMERIC"
+
+
+def test_infer_pg_type_string_fallback():
+    from extract_load import infer_pg_type
+    assert infer_pg_type("hello") == "TEXT"
+
+
+def test_get_mysql_config_returns_correct_keys():
+    env = {
+        "MYSQL_HOST": "db.example.com",
+        "MYSQL_PORT": "3306",
+        "MYSQL_USER": "user",
+        "MYSQL_PASSWORD": "pass",
+        "MYSQL_DB": "mydb",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        from extract_load import get_mysql_config
+        config = get_mysql_config()
+    assert config["host"] == "db.example.com"
+    assert config["port"] == 3306          # must be int, not string
+    assert config["user"] == "user"
+    assert config["password"] == "pass"
+    assert config["database"] == "mydb"    # PyMySQL requires "database", not "dbname"
+
+
+def test_get_pg_config_returns_correct_keys():
+    env = {
+        "PG_HOST": "localhost",
+        "PG_PORT": "5432",
+        "PG_USER": "student",
+        "PG_PASSWORD": "student123",
+        "PG_DB": "basket_craft",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        from extract_load import get_pg_config
+        config = get_pg_config()
+    assert config["host"] == "localhost"
+    assert config["port"] == 5432          # must be int, not string
+    assert config["user"] == "student"
+    assert config["password"] == "student123"
+    assert config["dbname"] == "basket_craft"  # psycopg2 requires "dbname", not "database"
+
+
+def test_copy_table_creates_schema_drops_and_inserts():
+    """copy_table must: create raw schema, drop existing table, create new table, bulk insert, commit."""
+    from unittest.mock import MagicMock
+
+    # --- MySQL mock ---
+    mock_mc = MagicMock()
+    mock_mc.description = [("product_id",), ("product_name",)]
+    mock_mc.fetchall.return_value = [(1, "Gift Basket"), (2, "Fruit Basket")]
+    mock_mysql = MagicMock()
+    mock_mysql.cursor.return_value.__enter__ = MagicMock(return_value=mock_mc)
+    mock_mysql.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+    # --- Postgres mock ---
+    mock_pc = MagicMock()
+    mock_pg = MagicMock()
+    mock_pg.cursor.return_value.__enter__ = MagicMock(return_value=mock_pc)
+    mock_pg.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+    with patch("psycopg2.extras.execute_values") as mock_ev:
+        from extract_load import copy_table
+        copy_table(mock_mysql, mock_pg, "products")
+
+    pg_calls = [str(c) for c in mock_pc.execute.call_args_list]
+    assert any("CREATE SCHEMA IF NOT EXISTS raw" in c for c in pg_calls)
+    assert any('DROP TABLE IF EXISTS raw."products"' in c for c in pg_calls)
+    assert any('CREATE TABLE raw."products"' in c for c in pg_calls)
+    mock_ev.assert_called_once()
+    mock_pg.commit.assert_called_once()
+
+
+def test_get_pg_config_rds_returns_rds_keys():
+    env = {
+        "TARGET": "rds",
+        "RDS_HOST": "rds.example.com",
+        "RDS_PORT": "5432",
+        "RDS_USER": "rdsuser",
+        "RDS_PASSWORD": "rdspass",
+        "RDS_DATABASE": "basket_craft",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        from extract_load import get_pg_config
+        config = get_pg_config()
+    assert config["host"] == "rds.example.com"
+    assert config["port"] == 5432
+    assert config["user"] == "rdsuser"
+    assert config["password"] == "rdspass"
+    assert config["dbname"] == "basket_craft"
