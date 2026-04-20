@@ -1,6 +1,6 @@
 # Basket Craft Pipeline
 
-An ELT pipeline that extracts sales data from a MySQL source database, loads it into PostgreSQL (local Docker or AWS RDS), and transforms it into a monthly sales summary dashboard table.
+An ELT pipeline that extracts sales data from a MySQL source database, loads it into PostgreSQL (local Docker or AWS RDS), and transforms it into a monthly sales summary dashboard table. A separate loader script copies the raw RDS tables into Snowflake.
 
 **Output:** `marts.monthly_sales_summary` — revenue, order count, and average order value by product and month.
 
@@ -12,15 +12,23 @@ An ELT pipeline that extracts sales data from a MySQL source database, loads it 
 
 ```
 MySQL (remote)          PostgreSQL (Docker or RDS)
-─────────────           ─────────────────────────────────────
+─────────────           ──────────────────────────────────────────────────────
 orders          ──►     raw.orders
-order_items     ──►     raw.order_items          ──►   marts.monthly_sales_summary
+order_items     ──►     raw.order_items    ──►   marts.monthly_sales_summary
 products        ──►     raw.products
          extract_load.py              transform.py
+
+                        PostgreSQL (RDS)           Snowflake
+                        ────────────────           ──────────────────────────
+                        raw.orders         ──►     BASKET_CRAFT.RAW.orders
+                        raw.order_items    ──►     BASKET_CRAFT.RAW.order_items
+                        raw.products       ──►     BASKET_CRAFT.RAW.products
+                                  rds_to_snowflake.py
 ```
 
 1. `extract_load.py` — copies three MySQL tables into a `raw` schema in Postgres (full refresh each run). Set `TARGET=rds` to load into AWS RDS instead of local Docker.
-2. `transform.py` — runs `sql/monthly_sales.sql` to aggregate the raw tables into `marts.monthly_sales_summary`
+2. `transform.py` — runs `sql/monthly_sales.sql` to aggregate the raw tables into `marts.monthly_sales_summary`.
+3. `rds_to_snowflake.py` — reads the three raw tables from AWS RDS and loads them (full refresh) into Snowflake's `BASKET_CRAFT.RAW` schema.
 
 ---
 
@@ -56,6 +64,18 @@ MYSQL_DB=<database>
 
 The local Postgres values are pre-filled to match the Docker container. To target AWS RDS instead, fill in the `RDS_*` section of `.env` and run with `TARGET=rds`.
 
+To load into Snowflake, fill in the `SF_*` section of `.env`:
+
+```
+SF_ACCOUNT=<account-identifier>   # e.g. xy12345.us-east-1
+SF_USER=<user>
+SF_PASSWORD=<password>
+SF_DATABASE=BASKET_CRAFT
+SF_SCHEMA=RAW
+SF_WAREHOUSE=<warehouse>
+SF_ROLE=<role>                    # optional — leave blank for default role
+```
+
 ### 3. Start the database
 
 ```bash
@@ -72,7 +92,7 @@ docker compose exec postgres psql -U student -d basket_craft -c "SELECT version(
 
 ## Running the Pipeline
 
-Run the two scripts in order:
+### MySQL → Postgres → mart
 
 ```bash
 # Load into local Docker Postgres (default)
@@ -81,7 +101,7 @@ python transform.py
 
 # Load into AWS RDS Postgres
 TARGET=rds python extract_load.py
-python transform.py   # transform.py always runs against PG_* — update .env PG_* to point to RDS if needed
+python transform.py
 ```
 
 Expected output:
@@ -93,7 +113,23 @@ Expected output:
 [transform]    marts.monthly_sales_summary → 94 rows
 ```
 
-Both scripts are safe to re-run — they fully replace the output tables each time.
+### RDS → Snowflake
+
+Requires the `RDS_*` and `SF_*` vars to be set in `.env`.
+
+```bash
+python rds_to_snowflake.py
+```
+
+Expected output:
+
+```
+[rds_to_snowflake] RAW.orders      → 32,313 rows loaded
+[rds_to_snowflake] RAW.order_items → 40,025 rows loaded
+[rds_to_snowflake] RAW.products    → 4 rows loaded
+```
+
+All scripts are safe to re-run — they fully replace the output tables each time.
 
 ---
 
@@ -131,7 +167,7 @@ source venv/bin/activate
 pytest tests/ -v
 ```
 
-16 unit tests covering config loading (including RDS path), type inference, SQL structure, and core pipeline functions. No live database required.
+20 unit tests covering config loading, SQL structure, and core pipeline functions across all three scripts. No live database required.
 
 ---
 
@@ -139,12 +175,13 @@ pytest tests/ -v
 
 ```
 basket-craft-pipeline/
-├── extract_load.py       # Step 1: MySQL → raw.* in Postgres
-├── transform.py          # Step 2: raw.* → marts.monthly_sales_summary
+├── extract_load.py         # Step 1: MySQL → raw.* in Postgres (Docker or RDS)
+├── transform.py            # Step 2: raw.* → marts.monthly_sales_summary
+├── rds_to_snowflake.py     # Step 3: RDS raw.* → Snowflake BASKET_CRAFT.RAW
 ├── sql/
-│   └── monthly_sales.sql # Aggregation query
-├── tests/                # Unit tests (pytest)
-├── docker-compose.yml    # Postgres 16 container
-├── requirements.txt      # Python dependencies
-└── .env.example          # Credential template
+│   └── monthly_sales.sql   # Aggregation query
+├── tests/                  # Unit tests (pytest, 20 tests)
+├── docker-compose.yml      # Postgres 16 container
+├── requirements.txt        # Python dependencies
+└── .env.example            # Credential template (MySQL, Postgres, RDS, Snowflake)
 ```
