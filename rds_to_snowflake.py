@@ -48,3 +48,30 @@ def first_non_null(rows, col_index):
         if row[col_index] is not None:
             return row[col_index]
     return None
+
+
+def copy_table(pg_conn, sf_conn, table_name):
+    """Copy one RDS raw table into the RAW schema in Snowflake."""
+    with pg_conn.cursor() as pc:
+        pc.execute(f'SELECT * FROM raw."{table_name}"')
+        rows = pc.fetchall()
+        col_names = [d[0] for d in pc.description]
+
+    if not rows:
+        print(f"[rds_to_snowflake] RAW.{table_name} → 0 rows (empty source)")
+        return
+
+    sf_types     = [infer_sf_type(first_non_null(rows, i)) for i in range(len(col_names))]
+    col_defs     = ", ".join(f'"{c}" {t}' for c, t in zip(col_names, sf_types))
+    placeholders = ", ".join(["%s"] * len(col_names))
+
+    with sf_conn.cursor() as sc:
+        sc.execute('CREATE SCHEMA IF NOT EXISTS "RAW"')
+        sc.execute(f'DROP TABLE IF EXISTS "RAW"."{table_name}"')
+        sc.execute(f'CREATE TABLE "RAW"."{table_name}" ({col_defs})')
+        sc.executemany(
+            f'INSERT INTO "RAW"."{table_name}" VALUES ({placeholders})',
+            rows,
+        )
+    sf_conn.commit()
+    print(f"[rds_to_snowflake] RAW.{table_name} → {len(rows):,} rows loaded")

@@ -88,3 +88,33 @@ def test_infer_sf_type_datetime():
 def test_infer_sf_type_str_fallback():
     from rds_to_snowflake import infer_sf_type
     assert infer_sf_type("hello") == "TEXT"
+
+
+def test_copy_table_creates_schema_drops_and_inserts():
+    """copy_table must: create RAW schema, drop existing table, create new table, bulk insert, commit."""
+    # --- RDS (psycopg2) mock ---
+    mock_pg_cur = MagicMock()
+    mock_pg_cur.description = [("product_id",), ("product_name",), ("price_usd",)]
+    mock_pg_cur.fetchall.return_value = [
+        (1, "Gift Basket", 29.99),
+        (2, "Fruit Basket", 19.99),
+    ]
+    mock_pg_conn = MagicMock()
+    mock_pg_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_pg_cur)
+    mock_pg_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+    # --- Snowflake mock ---
+    mock_sf_cur = MagicMock()
+    mock_sf_conn = MagicMock()
+    mock_sf_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_sf_cur)
+    mock_sf_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+    from rds_to_snowflake import copy_table
+    copy_table(mock_pg_conn, mock_sf_conn, "products")
+
+    sf_calls = [str(c) for c in mock_sf_cur.execute.call_args_list]
+    assert any("CREATE SCHEMA IF NOT EXISTS" in c for c in sf_calls)
+    assert any("DROP TABLE IF EXISTS" in c for c in sf_calls)
+    assert any("CREATE TABLE" in c for c in sf_calls)
+    mock_sf_cur.executemany.assert_called_once()
+    mock_sf_conn.commit.assert_called_once()
