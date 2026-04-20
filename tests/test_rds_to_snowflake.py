@@ -25,13 +25,13 @@ def test_get_rds_config_returns_correct_keys():
 
 def test_get_snowflake_config_returns_correct_keys():
     env = {
-        "SF_ACCOUNT":   "xy12345.us-east-1",
-        "SF_USER":      "student",
-        "SF_PASSWORD":  "secret",
-        "SF_DATABASE":  "BASKET_CRAFT",
-        "SF_SCHEMA":    "RAW",
-        "SF_WAREHOUSE": "COMPUTE_WH",
-        "SF_ROLE":      "SYSADMIN",
+        "SNOWFLAKE_ACCOUNT":   "xy12345.us-east-1",
+        "SNOWFLAKE_USER":      "student",
+        "SNOWFLAKE_PASSWORD":  "secret",
+        "SNOWFLAKE_DATABASE":  "BASKET_CRAFT",
+        "SNOWFLAKE_SCHEMA":    "RAW",
+        "SNOWFLAKE_WAREHOUSE": "COMPUTE_WH",
+        "SNOWFLAKE_ROLE":      "SYSADMIN",
     }
     with patch.dict(os.environ, env, clear=True):
         from rds_to_snowflake import get_snowflake_config
@@ -47,12 +47,12 @@ def test_get_snowflake_config_returns_correct_keys():
 
 def test_get_snowflake_config_omits_role_when_unset():
     env = {
-        "SF_ACCOUNT":   "xy12345.us-east-1",
-        "SF_USER":      "student",
-        "SF_PASSWORD":  "secret",
-        "SF_DATABASE":  "BASKET_CRAFT",
-        "SF_SCHEMA":    "RAW",
-        "SF_WAREHOUSE": "COMPUTE_WH",
+        "SNOWFLAKE_ACCOUNT":   "xy12345.us-east-1",
+        "SNOWFLAKE_USER":      "student",
+        "SNOWFLAKE_PASSWORD":  "secret",
+        "SNOWFLAKE_DATABASE":  "BASKET_CRAFT",
+        "SNOWFLAKE_SCHEMA":    "RAW",
+        "SNOWFLAKE_WAREHOUSE": "COMPUTE_WH",
     }
     with patch.dict(os.environ, env, clear=True):
         from rds_to_snowflake import get_snowflake_config
@@ -113,7 +113,6 @@ def test_copy_table_creates_schema_drops_and_inserts():
     copy_table(mock_pg_conn, mock_sf_conn, "products")
 
     sf_calls = [str(c) for c in mock_sf_cur.execute.call_args_list]
-    assert any("CREATE SCHEMA IF NOT EXISTS" in c for c in sf_calls)
     assert any("DROP TABLE IF EXISTS" in c for c in sf_calls)
     assert any("CREATE TABLE" in c for c in sf_calls)
     mock_sf_cur.executemany.assert_called_once()

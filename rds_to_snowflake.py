@@ -19,14 +19,14 @@ def get_rds_config():
 
 def get_snowflake_config():
     config = {
-        "account":   os.environ["SF_ACCOUNT"],
-        "user":      os.environ["SF_USER"],
-        "password":  os.environ["SF_PASSWORD"],
-        "database":  os.environ["SF_DATABASE"],
-        "schema":    os.environ["SF_SCHEMA"],
-        "warehouse": os.environ["SF_WAREHOUSE"],
+        "account":   os.environ["SNOWFLAKE_ACCOUNT"],
+        "user":      os.environ["SNOWFLAKE_USER"],
+        "password":  os.environ["SNOWFLAKE_PASSWORD"],
+        "database":  os.environ["SNOWFLAKE_DATABASE"],
+        "schema":    os.environ["SNOWFLAKE_SCHEMA"],
+        "warehouse": os.environ["SNOWFLAKE_WAREHOUSE"],
     }
-    role = os.environ.get("SF_ROLE")
+    role = os.environ.get("SNOWFLAKE_ROLE")
     if role:
         config["role"] = role
     return config
@@ -66,7 +66,6 @@ def copy_table(pg_conn, sf_conn, table_name):
     placeholders = ", ".join(["%s"] * len(col_names))
 
     with sf_conn.cursor() as sc:
-        sc.execute('CREATE SCHEMA IF NOT EXISTS "RAW"')
         sc.execute(f'DROP TABLE IF EXISTS "RAW"."{table_name}"')
         sc.execute(f'CREATE TABLE "RAW"."{table_name}" ({col_defs})')
         sc.executemany(
