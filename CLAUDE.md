@@ -24,7 +24,7 @@ python rds_to_snowflake.py        # load RDS raw.* → Snowflake basket_craft.ra
 ## Tests
 
 ```bash
-pytest tests/ -v                              # full suite (26 tests)
+pytest tests/ -v                              # full suite (20 tests)
 pytest tests/test_extract_load.py -v         # unit tests for extract_load
 pytest tests/test_transform.py -v            # unit tests for transform
 pytest tests/test_sql.py -v                  # SQL file structure tests

@@ -167,7 +167,7 @@ source venv/bin/activate
 pytest tests/ -v
 ```
 
-26 unit tests covering config loading, type inference, SQL structure, and core pipeline functions across all three scripts. No live database required.
+20 unit tests covering config loading, SQL structure, and core pipeline functions across all three scripts. No live database required.
 
 ---
 
@@ -180,7 +180,7 @@ basket-craft-pipeline/
 ├── rds_to_snowflake.py     # Step 3: RDS raw.* → Snowflake BASKET_CRAFT.RAW
 ├── sql/
 │   └── monthly_sales.sql   # Aggregation query
-├── tests/                  # Unit tests (pytest, 26 tests)
+├── tests/                  # Unit tests (pytest, 20 tests)
 ├── docker-compose.yml      # Postgres 16 container
 ├── requirements.txt        # Python dependencies
 └── .env.example            # Credential template (MySQL, Postgres, RDS, Snowflake)

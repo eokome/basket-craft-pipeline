@@ -1,10 +1,9 @@
 import os
-import decimal
-from datetime import date, datetime
 
+import pandas as pd
 import psycopg2
-import psycopg2.extras
 import snowflake.connector
+from snowflake.connector.pandas_tools import write_pandas
 
 
 def get_rds_config():
@@ -32,48 +31,34 @@ def get_snowflake_config():
     return config
 
 
-def infer_sf_type(value):
-    """Map a Python value to a Snowflake column type string."""
-    if isinstance(value, datetime):        return "TIMESTAMP"
-    if isinstance(value, date):            return "DATE"
-    if isinstance(value, int):             return "NUMBER"
-    if isinstance(value, float):           return "FLOAT"
-    if isinstance(value, decimal.Decimal): return "NUMBER"
-    return "TEXT"
-
-
-def first_non_null(rows, col_index):
-    """Return the first non-null value for a given column, or None."""
-    for row in rows:
-        if row[col_index] is not None:
-            return row[col_index]
-    return None
-
-
 def copy_table(pg_conn, sf_conn, table_name):
-    """Copy one RDS raw table into the RAW schema in Snowflake."""
+    """Copy one RDS raw table into the RAW schema in Snowflake.
+
+    Tables and columns are created UPPERCASE so they can be queried in
+    Snowflake without double-quotes (e.g. SELECT * FROM orders).
+    write_pandas stages the data as Parquet and uses COPY INTO internally,
+    which is the production-standard Snowflake ingestion path.
+    """
     with pg_conn.cursor() as pc:
         pc.execute(f'SELECT * FROM raw."{table_name}"')
         rows = pc.fetchall()
         col_names = [d[0] for d in pc.description]
 
     if not rows:
-        print(f"[rds_to_snowflake] RAW.{table_name} → 0 rows (empty source)")
+        print(f"[rds_to_snowflake] {table_name.upper()} → 0 rows (empty source)")
         return
 
-    sf_types     = [infer_sf_type(first_non_null(rows, i)) for i in range(len(col_names))]
-    col_defs     = ", ".join(f'"{c}" {t}' for c, t in zip(col_names, sf_types))
-    placeholders = ", ".join(["%s"] * len(col_names))
+    df = pd.DataFrame(rows, columns=col_names)
+    df.columns = df.columns.str.upper()
 
-    with sf_conn.cursor() as sc:
-        sc.execute(f'DROP TABLE IF EXISTS "RAW"."{table_name}"')
-        sc.execute(f'CREATE TABLE "RAW"."{table_name}" ({col_defs})')
-        sc.executemany(
-            f'INSERT INTO "RAW"."{table_name}" VALUES ({placeholders})',
-            rows,
-        )
-    sf_conn.commit()
-    print(f"[rds_to_snowflake] RAW.{table_name} → {len(rows):,} rows loaded")
+    success, _nchunks, nrows, _ = write_pandas(
+        sf_conn,
+        df,
+        table_name.upper(),
+        overwrite=True,
+        quote_identifiers=False,
+    )
+    print(f"[rds_to_snowflake] {table_name.upper()} → {nrows:,} rows loaded")
 
 
 def main():
