@@ -75,3 +75,29 @@ def copy_table(pg_conn, sf_conn, table_name):
         )
     sf_conn.commit()
     print(f"[rds_to_snowflake] RAW.{table_name} → {len(rows):,} rows loaded")
+
+
+def main():
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    pg_conn = None
+    sf_conn = None
+    try:
+        pg_conn = psycopg2.connect(**get_rds_config())
+        sf_conn = snowflake.connector.connect(**get_snowflake_config())
+        for table in ["orders", "order_items", "products"]:
+            try:
+                copy_table(pg_conn, sf_conn, table)
+            except Exception as e:
+                print(f"[rds_to_snowflake] ERROR copying {table}: {e}")
+                raise SystemExit(1)
+    finally:
+        if pg_conn is not None:
+            pg_conn.close()
+        if sf_conn is not None:
+            sf_conn.close()
+
+
+if __name__ == "__main__":
+    main()
