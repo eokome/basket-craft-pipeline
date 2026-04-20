@@ -42,7 +42,7 @@ ELT pattern — three independent scripts:
 
 3. **`sql/monthly_sales.sql`** — the only transformation logic. The `products` table has no `category` column; it groups by `product_name` instead. Uses `price_usd::NUMERIC` for safe decimal arithmetic and `NULLIF` to guard division by zero.
 
-4. **`rds_to_snowflake.py`** — reads `raw.orders`, `raw.order_items`, and `raw.products` from AWS RDS Postgres (`RDS_*` env vars) and loads them (full refresh) into Snowflake (`SNOWFLAKE_*` env vars). Target: database `basket_craft`, schema `raw`. Column types are inferred via `infer_sf_type`. Tables are created with quoted lowercase names (e.g. `"orders"`) — query them in Snowflake with quotes: `SELECT * FROM "orders"`.
+4. **`rds_to_snowflake.py`** — reads `raw.orders`, `raw.order_items`, and `raw.products` from AWS RDS Postgres (`RDS_*` env vars) and loads them (full refresh) into Snowflake (`SNOWFLAKE_*` env vars). Target: database `BASKET_CRAFT`, schema `RAW`. Uses `write_pandas` (Parquet → internal stage → `COPY INTO`) with `overwrite=True` and `quote_identifiers=False`. Tables and all columns are stored UPPERCASE — query them without quotes: `SELECT * FROM orders`.
 
 **PostgreSQL schemas:**
 - `raw` — exact copies of MySQL source tables, replaced on every run
@@ -66,19 +66,19 @@ Tests enforce key names for all four credential sets.
 
 ## Querying Snowflake
 
-Tables are stored with quoted lowercase names. Always use double quotes when referencing them in Snowflake:
+Tables are stored UPPERCASE. No double-quotes needed:
 
 ```sql
 -- Row counts
-SELECT COUNT(*) FROM "orders";
-SELECT COUNT(*) FROM "order_items";
-SELECT COUNT(*) FROM "products";
+SELECT COUNT(*) FROM orders;
+SELECT COUNT(*) FROM order_items;
+SELECT COUNT(*) FROM products;
 
 -- Preview
-SELECT * FROM "orders" LIMIT 10;
+SELECT * FROM orders LIMIT 10;
 ```
 
-Warehouse: `basket_craft_wh` | Database: `basket_craft` | Schema: `raw` | Role: `basket_craft_loader`
+Warehouse: `BASKET_CRAFT_WH` | Database: `BASKET_CRAFT` | Schema: `RAW` | Role: `BASKET_CRAFT_LOADER`
 
 ---
 
