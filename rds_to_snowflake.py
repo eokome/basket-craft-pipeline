@@ -30,3 +30,21 @@ def get_snowflake_config():
     if role:
         config["role"] = role
     return config
+
+
+def infer_sf_type(value):
+    """Map a Python value to a Snowflake column type string."""
+    if isinstance(value, datetime):        return "TIMESTAMP"
+    if isinstance(value, date):            return "DATE"
+    if isinstance(value, int):             return "NUMBER"
+    if isinstance(value, float):           return "FLOAT"
+    if isinstance(value, decimal.Decimal): return "NUMBER"
+    return "TEXT"
+
+
+def first_non_null(rows, col_index):
+    """Return the first non-null value for a given column, or None."""
+    for row in rows:
+        if row[col_index] is not None:
+            return row[col_index]
+    return None

@@ -58,3 +58,33 @@ def test_get_snowflake_config_omits_role_when_unset():
         from rds_to_snowflake import get_snowflake_config
         cfg = get_snowflake_config()
     assert "role" not in cfg
+
+
+def test_infer_sf_type_int():
+    from rds_to_snowflake import infer_sf_type
+    assert infer_sf_type(42) == "NUMBER"
+
+
+def test_infer_sf_type_float():
+    from rds_to_snowflake import infer_sf_type
+    assert infer_sf_type(3.14) == "FLOAT"
+
+
+def test_infer_sf_type_decimal():
+    from rds_to_snowflake import infer_sf_type
+    assert infer_sf_type(decimal.Decimal("9.99")) == "NUMBER"
+
+
+def test_infer_sf_type_date():
+    from rds_to_snowflake import infer_sf_type
+    assert infer_sf_type(date(2024, 1, 1)) == "DATE"
+
+
+def test_infer_sf_type_datetime():
+    from rds_to_snowflake import infer_sf_type
+    assert infer_sf_type(datetime(2024, 1, 1, 12, 0)) == "TIMESTAMP"
+
+
+def test_infer_sf_type_str_fallback():
+    from rds_to_snowflake import infer_sf_type
+    assert infer_sf_type("hello") == "TEXT"
