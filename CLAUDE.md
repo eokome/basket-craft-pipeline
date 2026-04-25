@@ -70,3 +70,61 @@ docker compose exec postgres psql -U student -d basket_craft \
 PGPASSWORD=<RDS_PASSWORD> psql -h <RDS_HOST> -U student -d basket_craft \
   -c "SELECT * FROM marts.monthly_sales_summary ORDER BY month, product_name LIMIT 10;"
 ```
+
+---
+
+## dbt Layer (Snowflake)
+
+### Setup
+
+```bash
+cd basket_craft
+../venv/bin/dbt debug        # confirm Snowflake connection
+../venv/bin/dbt run          # build all models
+../venv/bin/dbt test         # run data quality tests
+../venv/bin/dbt docs generate && ../venv/bin/dbt docs serve  # open lineage docs
+```
+
+Profile lives at `~/.dbt/profiles.yml` (not committed). Target: `basket_craft` database, `ANALYTICS` schema, role `basket_craft_loader`.
+
+### Architecture
+
+Three-layer ELT in dbt on top of Snowflake:
+
+1. **Staging** (`models/staging/` → views) — one model per raw source table. Renames columns to lowercase, casts `CREATED_AT` from Unix NUMBER to TIMESTAMP via `TO_TIMESTAMP()`. No JOINs, WHERE, or aggregations — boring on purpose.
+
+2. **Marts** (`models/marts/` → tables) — star schema designed for Maya (head of merchandising).
+
+3. **Sources** declared in `models/staging/sources.yml` — points dbt at `basket_craft.raw.{ORDERS,ORDER_ITEMS,PRODUCTS}`.
+
+### Star Schema
+
+| Model | Grain | Notes |
+|---|---|---|
+| `fct_order_items` | one row per line item | PK: `order_item_id`; measures: `is_primary_item`, `is_refunded` |
+| `fct_orders` | one row per order | Rolls up from `fct_order_items` via `{{ ref() }}`; measures: `line_item_count`, `distinct_product_count` |
+| `dim_product` | product | `product_id`, `product_name`, `description` |
+| `dim_customer` | user | `user_id`, `first_order_at`, `customer_segment` (new/returning) |
+| `dim_order` | order | `order_id`, `user_id`, `website_session_id`, `created_at` |
+| `dim_date` | calendar day | Date spine 2023–2025; `month_label`, `quarter_num`, `year` |
+
+### Key Design Decisions
+
+- `fct_orders` reads from `fct_order_items`, never from staging — keeps aggregations consistent with the atomic fact.
+- `CREATED_AT` in raw Snowflake tables is a NUMBER (Unix timestamp), not a TIMESTAMP — `TO_TIMESTAMP()` is applied once in staging.
+- Raw tables are UPPERCASE in Snowflake (`ORDERS`, not `orders`) — staging references them without quotes via `source('raw', 'orders')`.
+- `ANALYTICS` schema was pre-created by ACCOUNTADMIN and granted to `basket_craft_loader`; dbt does not need `CREATE SCHEMA` on the database.
+- SQL convention: uppercase keywords, lowercase identifiers.
+
+### Data Quality Tests
+
+`models/marts/schema.yml` enforces `unique` + `not_null` on:
+- `fct_order_items.order_item_id`
+- `fct_orders.order_id`
+
+### What's Next
+
+- Add `not_null` tests on foreign keys (`product_id`, `user_id`) in `fct_order_items`
+- Add a `customers` source table to Snowflake raw and build a proper `dim_customer` (currently derived from orders only)
+- Add `price_usd` once a pricing table or column appears in the source data
+- Wire `fct_order_items.ordered_at` to `dim_date.date_day` as a formal FK relationship in schema.yml

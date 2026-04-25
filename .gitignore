@@ -207,3 +207,8 @@ marimo/_lsp/
 __marimo__/
 .worktrees/
 .superpowers/
+
+# dbt
+basket_craft/target/
+basket_craft/logs/
+basket_craft/dbt_packages/
